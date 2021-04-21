@@ -60,9 +60,9 @@ def poly_x(xs):
     xs = np.column_stack((ones, xs, xs**2, xs**3))
     return xs
 
-def exp_x(xs):
+def log_x(xs):
     ones = np.ones(xs.shape)
-    xs = np.column_stack((ones, np.exp(xs)))
+    xs = np.column_stack((ones, np.log(xs)))
     return xs
 
 def linear(X, Y):
@@ -78,10 +78,10 @@ def polynomial(X, Y):
     return ys
 
 #try exponential or logarithmic for the unknown func
-def exponential(X, Y):
-    xs = exp_x(X)
+def logarythmic(X, Y):
+    xs = log_x(X)
     a, b = fit_maximum_likelihood_estimate(xs, Y)
-    ys = a * b*np.exp(X)
+    ys = a * b*np.log(X)
     return ys
 
 def sum_square_error(y_act, y_est):
@@ -104,10 +104,10 @@ def kfold(k, data_xs, data_ys, func_type):
             train_xs = linear_x(train_xs)
             a, b = fit_maximum_likelihood_estimate(train_xs, train_ys)
             yh_test = a + b * test_xs
-        elif func_type == exponential:
-            train_xs = exp_x(train_xs)
+        elif func_type == logarythmic:
+            train_xs = log_x(train_xs)
             a, b = fit_maximum_likelihood_estimate(train_xs, train_ys)
-            yh_test = a * b*np.exp(test_xs)
+            yh_test = a * b*np.log(test_xs)
             
         #I'd prefer to use the linear, poly etc functions here, but 
         #fit max is supposed to use train_xs and yh_test is supposed to be on test_xs
@@ -134,12 +134,11 @@ def main():
         ys_temp = ys[20*i:20*(i+1)]
         y_est_temp_linear = linear(xs_temp, ys_temp)
         y_est_temp_polynomial = polynomial(xs_temp, ys_temp)
-        y_est_temp_exponential = exponential(xs_temp, ys_temp)
+        y_est_temp_logarythmic = logarythmic(xs_temp, ys_temp)
         k = 5
         cverror_linear = kfold(k, xs_temp, ys_temp, linear)
         cverror_polynomial = kfold(k, xs_temp, ys_temp, polynomial) #pick correct k
         cverror_exponential = kfold(k, xs_temp, ys_temp, exponential)
-        cverror_quadratic = kfold(k, xs_temp, ys_temp, exponential)
         if cverror_linear <= cverror_polynomial and cverror_linear <= cverror_exponential:
             print("linear")
             y_est_temp = y_est_temp_linear
