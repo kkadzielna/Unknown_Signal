@@ -4,36 +4,13 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 
-"""Read in a file containing a number of different line segments (each made up of 20 points)
-    Determine the function type of line segment, 
-        linear
-        polynomial with a fixed order that you must determine
-        unknown nonlinear function that you must determine
-    Use maximum-likelihood/least squares regression to fit the function
-    Produce the total reconstruction error 
-    Produce a figure showing the reconstructed line from the points if an optional argument is given. 
-  """
-
 """from utilities.py"""
 def load_points_from_file(filename):
-    """Loads 2d points from a csv called filename
-    Args:
-        filename : Path to .csv file
-    Returns:
-        (xs, ys) where xs and ys are a numpy array of the co-ordinates.
-    """
     points = pd.read_csv(filename, header=None)
     return points[0].values, points[1].values
 
 """from utilities.py"""
 def view_data_segments(xs, ys, y_est):
-    """Visualises the input file with each segment plotted in a different colour.
-    Args:
-        xs : List/array-like of x co-ordinates.
-        ys : List/array-like of y co-ordinates.
-    Returns:
-        None
-    """
     assert len(xs) == len(ys)
     assert len(xs) % 20 == 0
     len_data = len(xs)
@@ -49,7 +26,7 @@ def fit_maximum_likelihood_estimate(xs, ys):
     result = np.linalg.inv(xs.T.dot(xs)).dot(xs.T).dot(ys)
     return result
 
-#refactor idea: linear, polynomial take in xs for max likelihood est and an X for te exquations
+
 def linear_x(xs):
     ones = np.ones(xs.shape)
     xs = np.column_stack((ones, xs))
@@ -60,9 +37,9 @@ def poly_x(xs):
     xs = np.column_stack((ones, xs, xs**2, xs**3))
     return xs
 
-def log_x(xs):
+def sin_x(xs):
     ones = np.ones(xs.shape)
-    xs = np.column_stack((ones, np.log(xs)))
+    xs = np.column_stack((ones, np.sin(xs)))
     return xs
 
 def linear(X, Y):
@@ -77,25 +54,35 @@ def polynomial(X, Y):
     ys = a + b * X + c * X**2 + d * X**3
     return ys
 
-#try exponential or logarithmic for the unknown func
-def logarythmic(X, Y):
-    xs = log_x(X)
+def sinus(X, Y):
+    xs = sin_x(X)
     a, b = fit_maximum_likelihood_estimate(xs, Y)
-    ys = a * b*np.log(X)
+    ys = a + b*np.sin(X)
     return ys
 
 def sum_square_error(y_act, y_est):
     return np.sum((y_act - y_est)**2)
 
+def shuffle(data_xs, data_ys):
+    shuffled_data = []
+    for i in range(len(data_xs)):
+        shuffled_data.append((data_xs[i], data_ys[i]))
+    shuffled_data = list(shuffled_data)
+    np.random.shuffle(shuffled_data)
+    shuffled_data = tuple(shuffled_data)
+    data_xs = np.array([i[0] for i in shuffled_data])
+    data_ys = np.array([i[1] for i in shuffled_data])
+    return data_xs, data_ys
+
 def kfold(k, data_xs, data_ys, func_type):
     fold_size = len(data_xs)//k
     cv_error = []
+    data_xs, data_ys = shuffle(data_xs, data_ys)
     for i in range(k):
         train_xs = data_xs[fold_size*i:fold_size*(i+1)]
         train_ys = data_ys[fold_size*i:fold_size*(i+1)]
         test_xs = np.concatenate((data_xs[:fold_size*i], data_xs[fold_size*(i+1):]))
         test_ys = np.concatenate((data_ys[:fold_size*i], data_ys[fold_size*(i+1):]))
-        #may be possible to reduce with the new loinear and polynomial function definitions
         if func_type == polynomial:
             train_xs = poly_x(train_xs)
             a, b, c, d = fit_maximum_likelihood_estimate(train_xs, train_ys)
@@ -104,22 +91,25 @@ def kfold(k, data_xs, data_ys, func_type):
             train_xs = linear_x(train_xs)
             a, b = fit_maximum_likelihood_estimate(train_xs, train_ys)
             yh_test = a + b * test_xs
-        elif func_type == logarythmic:
-            train_xs = log_x(train_xs)
+        elif func_type == sinus:
+            train_xs = sin_x(train_xs)
             a, b = fit_maximum_likelihood_estimate(train_xs, train_ys)
-            yh_test = a * b*np.log(test_xs)
-            
-        #I'd prefer to use the linear, poly etc functions here, but 
-        #fit max is supposed to use train_xs and yh_test is supposed to be on test_xs
-        #and i can't split it with what the funcs look like now
+            yh_test = a + b*np.sin(test_xs)
         cv_error.append(sum_square_error(test_ys, yh_test))
+    cv_error = np.mean(cv_error)
     return cv_error
+
+def repeat(n, k, data_xs, data_ys, func_type):
+    cverror = []
+    for i in range(n):
+        cverror.append(kfold(k, data_xs, data_ys, func_type))
+    return np.mean(cverror)
+        
 """I still need to:
     make sure the fit is decent
-    doesn't pick correctly between linear/polynomial, favours linear. Maybe better cross validation? 
+    repeat te cross validation n times
     find out how to utilise cross validation
-    make it fit an unknown function - probably not exponential
-    make it switch between the different function types
+    why is it inconsistent? (noise_3)
     testing
     report"""
 def main():
@@ -134,27 +124,25 @@ def main():
         ys_temp = ys[20*i:20*(i+1)]
         y_est_temp_linear = linear(xs_temp, ys_temp)
         y_est_temp_polynomial = polynomial(xs_temp, ys_temp)
-        y_est_temp_logarythmic = logarythmic(xs_temp, ys_temp)
+        y_est_temp_sin = sinus(xs_temp, ys_temp)
         k = 5
-        cverror_linear = kfold(k, xs_temp, ys_temp, linear)
-        cverror_polynomial = kfold(k, xs_temp, ys_temp, polynomial) #pick correct k
-        cverror_exponential = kfold(k, xs_temp, ys_temp, exponential)
-        if cverror_linear <= cverror_polynomial and cverror_linear <= cverror_exponential:
-            print("linear")
+        n = 50
+        cverror_linear = repeat(n, k, xs_temp, ys_temp, linear)
+        cverror_polynomial = repeat(n, k, xs_temp, ys_temp, polynomial)
+        cverror_sin = repeat(n, k, xs_temp, ys_temp, sinus)
+        if cverror_linear <= cverror_polynomial and cverror_linear <= cverror_sin:
             y_est_temp = y_est_temp_linear
             cverror = cverror_linear
-        elif cverror_polynomial <= cverror_exponential:
-            print("poly")
+        elif cverror_polynomial <= cverror_sin:
             y_est_temp = y_est_temp_polynomial
             cverror = cverror_polynomial
         else:
-            print("exp")
-            y_est_temp = y_est_temp_exponential
-            cverror = cverror_exponential
+            y_est_temp = y_est_temp_sin
+            cverror = cverror_sin
         y_est = np.concatenate((y_est, y_est_temp))
-    #print(y_est)
     sse  = sum_square_error(ys, y_est)
     print(sse)
+    print('\n')
 
     if len(sys.argv) >= 3:
         if str(sys.argv[2]) == "--plot":

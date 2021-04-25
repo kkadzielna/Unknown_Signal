@@ -81,15 +81,28 @@ def polynomial(X, Y):
 def sinus(X, Y):
     xs = sin_x(X)
     a, b = fit_maximum_likelihood_estimate(xs, Y)
-    ys = a * b*np.sin(X)
+    ys = a + b*np.sin(X)
     return ys
 
 def sum_square_error(y_act, y_est):
     return np.sum((y_act - y_est)**2)
 
+def shuffle(data_xs, data_ys):
+    shuffled_data = []
+    for i in range(len(data_xs)):
+        shuffled_data.append((data_xs[i], data_ys[i]))
+    shuffled_data = list(shuffled_data)
+    np.random.shuffle(shuffled_data)
+    shuffled_data = tuple(shuffled_data)
+    data_xs = np.array([i[0] for i in shuffled_data])
+    data_ys = np.array([i[1] for i in shuffled_data])
+    return data_xs, data_ys
+
 def kfold(k, data_xs, data_ys, func_type):
     fold_size = len(data_xs)//k
     cv_error = []
+    #makes it inconsistent
+    data_xs, data_ys = shuffle(data_xs, data_ys)
     for i in range(k):
         train_xs = data_xs[fold_size*i:fold_size*(i+1)]
         train_ys = data_ys[fold_size*i:fold_size*(i+1)]
@@ -107,19 +120,25 @@ def kfold(k, data_xs, data_ys, func_type):
         elif func_type == sinus:
             train_xs = sin_x(train_xs)
             a, b = fit_maximum_likelihood_estimate(train_xs, train_ys)
-            yh_test = a * b*np.sin(test_xs)
+            yh_test = a + b*np.sin(test_xs)
             
         #I'd prefer to use the linear, poly etc functions here, but 
         #fit max is supposed to use train_xs and yh_test is supposed to be on test_xs
         #and i can't split it with what the funcs look like now
         cv_error.append(sum_square_error(test_ys, yh_test))
     return cv_error
+
+def repeat(n, k, data_xs, data_ys, func_type):
+    cverror = []
+    for i in range(n):
+        cverror.append(kfold(k, data_xs, data_ys, func_type))
+    return np.mean(cverror)
+        
 """I still need to:
     make sure the fit is decent
-    doesn't pick correctly between linear/polynomial, favours linear. Maybe better cross validation? 
+    repeat te cross validation n times
     find out how to utilise cross validation
-    make it fit an unknown function - probably not exponential
-    make it switch between the different function types
+    why is it inconsistent? (noise_3)
     testing
     report"""
 def main():
@@ -135,10 +154,19 @@ def main():
         y_est_temp_linear = linear(xs_temp, ys_temp)
         y_est_temp_polynomial = polynomial(xs_temp, ys_temp)
         y_est_temp_sin = sinus(xs_temp, ys_temp)
-        k = 2
+        k = 5
+        #still inconsistent
+        #even without shuffling at all!!!
+        #xs_temp, ys_temp = shuffle(xs_temp, ys_temp)
+        #repeating only make shit worse for some reason
         cverror_linear = kfold(k, xs_temp, ys_temp, linear)
-        cverror_polynomial = kfold(k, xs_temp, ys_temp, polynomial) #pick correct k
+        cverror_polynomial = kfold(k, xs_temp, ys_temp, polynomial)
         cverror_sin = kfold(k, xs_temp, ys_temp, sinus)
+        print("linear: " + str(cverror_linear), "poly: " + str(cverror_polynomial), "sin: " + str(cverror_sin))
+        n = 5
+        '''cverror_linear = repeat(n, k, xs_temp, ys_temp, linear)
+        cverror_polynomial = repeat(n, k, xs_temp, ys_temp, polynomial) #pick correct k
+        cverror_sin = repeat(n, k, xs_temp, ys_temp, sinus)'''
         if cverror_linear <= cverror_polynomial and cverror_linear <= cverror_sin:
             print("linear")
             y_est_temp = y_est_temp_linear
@@ -155,6 +183,7 @@ def main():
     #print(y_est)
     sse  = sum_square_error(ys, y_est)
     print(sse)
+    print('\n')
 
     if len(sys.argv) >= 3:
         if str(sys.argv[2]) == "--plot":

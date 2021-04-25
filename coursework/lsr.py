@@ -60,9 +60,9 @@ def poly_x(xs):
     xs = np.column_stack((ones, xs, xs**2, xs**3))
     return xs
 
-def exp_x(xs):
+def sin_x(xs):
     ones = np.ones(xs.shape)
-    xs = np.column_stack((ones, np.exp(xs)))
+    xs = np.column_stack((ones, np.sin(xs)))
     return xs
 
 def linear(X, Y):
@@ -78,18 +78,31 @@ def polynomial(X, Y):
     return ys
 
 #try exponential or logarithmic for the unknown func
-def exponential(X, Y):
-    xs = exp_x(X)
+def sinus(X, Y):
+    xs = sin_x(X)
     a, b = fit_maximum_likelihood_estimate(xs, Y)
-    ys = a * b*np.exp(X)
+    ys = a + b*np.sin(X)
     return ys
 
 def sum_square_error(y_act, y_est):
     return np.sum((y_act - y_est)**2)
 
+def shuffle(data_xs, data_ys):
+    shuffled_data = []
+    for i in range(len(data_xs)):
+        shuffled_data.append((data_xs[i], data_ys[i]))
+    shuffled_data = list(shuffled_data)
+    np.random.shuffle(shuffled_data)
+    shuffled_data = tuple(shuffled_data)
+    data_xs = np.array([i[0] for i in shuffled_data])
+    data_ys = np.array([i[1] for i in shuffled_data])
+    return data_xs, data_ys
+
 def kfold(k, data_xs, data_ys, func_type):
     fold_size = len(data_xs)//k
     cv_error = []
+    #makes it inconsistent
+    data_xs, data_ys = shuffle(data_xs, data_ys)
     for i in range(k):
         train_xs = data_xs[fold_size*i:fold_size*(i+1)]
         train_ys = data_ys[fold_size*i:fold_size*(i+1)]
@@ -104,22 +117,29 @@ def kfold(k, data_xs, data_ys, func_type):
             train_xs = linear_x(train_xs)
             a, b = fit_maximum_likelihood_estimate(train_xs, train_ys)
             yh_test = a + b * test_xs
-        elif func_type == exponential:
-            train_xs = exp_x(train_xs)
+        elif func_type == sinus:
+            train_xs = sin_x(train_xs)
             a, b = fit_maximum_likelihood_estimate(train_xs, train_ys)
-            yh_test = a * b*np.exp(test_xs)
+            yh_test = a + b*np.sin(test_xs)
             
         #I'd prefer to use the linear, poly etc functions here, but 
         #fit max is supposed to use train_xs and yh_test is supposed to be on test_xs
         #and i can't split it with what the funcs look like now
         cv_error.append(sum_square_error(test_ys, yh_test))
+        #you might want to return the mean instead
     return cv_error
+
+def repeat(n, k, data_xs, data_ys, func_type):
+    cverror = []
+    for i in range(n):
+        cverror.append(kfold(k, data_xs, data_ys, func_type))
+    return np.mean(cverror)
+        
 """I still need to:
     make sure the fit is decent
-    doesn't pick correctly between linear/polynomial, favours linear. Maybe better cross validation? 
+    repeat te cross validation n times
     find out how to utilise cross validation
-    make it fit an unknown function - probably not exponential
-    make it switch between the different function types
+    why is it inconsistent? (noise_3)
     testing
     report"""
 def main():
@@ -134,28 +154,37 @@ def main():
         ys_temp = ys[20*i:20*(i+1)]
         y_est_temp_linear = linear(xs_temp, ys_temp)
         y_est_temp_polynomial = polynomial(xs_temp, ys_temp)
-        y_est_temp_exponential = exponential(xs_temp, ys_temp)
+        y_est_temp_sin = sinus(xs_temp, ys_temp)
         k = 5
-        cverror_linear = kfold(k, xs_temp, ys_temp, linear)
-        cverror_polynomial = kfold(k, xs_temp, ys_temp, polynomial) #pick correct k
-        cverror_exponential = kfold(k, xs_temp, ys_temp, exponential)
-        cverror_quadratic = kfold(k, xs_temp, ys_temp, exponential)
-        if cverror_linear <= cverror_polynomial and cverror_linear <= cverror_exponential:
+        #still inconsistent
+        #even without shuffling at all!!!
+        #xs_temp, ys_temp = shuffle(xs_temp, ys_temp)
+        #repeating only makes it consistent but the fit is worse
+        '''cverror_linear = kfold(k, xs_temp, ys_temp, linear)
+        cverror_polynomial = kfold(k, xs_temp, ys_temp, polynomial)
+        cverror_sin = kfold(k, xs_temp, ys_temp, sinus)'''
+        n = 50
+        cverror_linear = repeat(n, k, xs_temp, ys_temp, linear)
+        cverror_polynomial = repeat(n, k, xs_temp, ys_temp, polynomial) #pick correct k
+        cverror_sin = repeat(n, k, xs_temp, ys_temp, sinus)
+        print("linear: " + str(cverror_linear), "poly: " + str(cverror_polynomial), "sin: " + str(cverror_sin))
+        if cverror_linear <= cverror_polynomial and cverror_linear <= cverror_sin:
             print("linear")
             y_est_temp = y_est_temp_linear
             cverror = cverror_linear
-        elif cverror_polynomial <= cverror_exponential:
+        elif cverror_polynomial <= cverror_sin:
             print("poly")
             y_est_temp = y_est_temp_polynomial
             cverror = cverror_polynomial
         else:
-            print("exp")
-            y_est_temp = y_est_temp_exponential
-            cverror = cverror_exponential
+            print("sin")
+            y_est_temp = y_est_temp_sin
+            cverror = cverror_sin
         y_est = np.concatenate((y_est, y_est_temp))
     #print(y_est)
     sse  = sum_square_error(ys, y_est)
     print(sse)
+    print('\n')
 
     if len(sys.argv) >= 3:
         if str(sys.argv[2]) == "--plot":
