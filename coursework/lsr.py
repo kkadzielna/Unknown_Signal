@@ -50,7 +50,7 @@ def linear(X, Y):
 
 def polynomial(X, Y):
     xs = poly_x(X)
-    a, b, c, d = fit_maximum_likelihood_estimate(xs, Y)
+    a, b, c, d= fit_maximum_likelihood_estimate(xs, Y)
     ys = a + b * X + c * X**2 + d * X**3
     return ys
 
@@ -112,8 +112,8 @@ def main():
 
     file_len = len(xs)//20
     y_est = []
-    k = 1
-    n = 50
+    k = 5
+    n = 10
     for i in range(file_len):
         xs_temp = xs[20*i:20*(i+1)]
         ys_temp = ys[20*i:20*(i+1)]
